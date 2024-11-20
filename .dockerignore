@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+
+# Azure Pipeline
+azure-pipelines.yml
+
+
+# GitHub
+.git/
+.github/

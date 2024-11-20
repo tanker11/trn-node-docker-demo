@@ -1,0 +1,113 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+  - main
+  - demo
+
+resources:
+  - repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: "f4f94a44-0505-4235-9347-4926b8fef7a4"
+  imageRepository: "trn-node-docker"
+  containerRegistry: "mentorklub.azurecr.io"
+  dockerfilePath: "$(Build.SourcesDirectory)/Dockerfile"
+  tag: "$(Build.BuildId)"
+
+  # Agent VM image name
+  vmImageName: "ubuntu-latest"
+
+stages:
+  - stage: Build
+    displayName: CD - Épít és feltölt
+    condition: eq(variables['Build.reason'], 'IndividualCI')
+    jobs:
+      - job: Build
+        displayName: Építés (Build)
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: Docker@2
+            displayName: Kép építése és feltöltése a Azure ACR-be
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+  - stage: ci_code_lint
+    displayName: CI - Kód formátum ellenőrzés
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    jobs:
+      - job: basic_check
+        displayName: Kód ellenőrzés
+        steps:
+          - task: NodeTool@0
+            displayName: "NodeJs 20 telepítés"
+            inputs:
+              versionSpec: "20.x"
+          - task: Bash@3
+            name: install_dependencies
+            displayName: Függőségek teleptése
+            inputs:
+              targetType: "inline"
+              script: |
+                npm upgrade
+                npm install
+          - task: Bash@3
+            name: node_check
+            displayName: "NodeJS - Kód ellenőrzés"
+            inputs:
+              targetType: "inline"
+              script: |
+                echo "##[command]A kód rendben?"
+                npm run lint:js
+          - task: Bash@3
+            name: ejs_check
+            displayName: "EJS - Kód ellenőrzés"
+            inputs:
+              targetType: "inline"
+              script: |
+                echo "##[command]A kód rendben?"
+                npm run lint:ejs
+          - task: Bash@3
+            name: html_check
+            displayName: "HTML - Kód ellenőrzés"
+            inputs:
+              targetType: "inline"
+              script: |
+                echo "##[command]A kód rendben?"
+                npm run lint:html
+  - stage: ci_code_check
+    displayName: CI - Funkció ellenőrzés
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    dependsOn: ci_code_lint
+    jobs:
+      - job: basic_check
+        displayName: Funkció ellenőrzés
+        steps:
+          - task: NodeTool@0
+            displayName: "NodeJs 20 telepítés"
+            inputs:
+              versionSpec: "20.x"
+          - task: Bash@3
+            name: install_dependencies
+            displayName: Függőségek teleptése
+            inputs:
+              targetType: "inline"
+              script: |
+                npm upgrade
+                npm install
+          - task: Bash@3
+            name: unit_tests
+            displayName: "Funkcionális tesztek futtatása"
+            inputs:
+              targetType: "inline"
+              script: |
+                echo "##[command]Funkciók rendben?"
+                npm run test
